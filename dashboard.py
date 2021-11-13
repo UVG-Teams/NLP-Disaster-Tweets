@@ -1,5 +1,4 @@
 import re
-import dash
 import nltk
 import string
 import folium
@@ -9,7 +8,6 @@ import pandas as pd
 import transformers
 import seaborn as sns
 import tensorflow as tf
-from dash import dcc, html
 from sparknlp.base import *
 import plotly.express as px
 from tqdm.notebook import tqdm
@@ -39,13 +37,17 @@ from sklearn.metrics import classification_report, accuracy_score
 from sklearn.metrics import (precision_score, recall_score, f1_score, classification_report, accuracy_score)
 from keras.layers import (LSTM, Embedding, BatchNormalization, Dense, TimeDistributed, Dropout, Bidirectional, Flatten, GlobalMaxPool1D)
 
+import dash
+from dash import html
+from dash import dcc
+from dash.dependencies import Input, Output
+
 
 app = dash.Dash(__name__)
 
 data = pd.read_csv('train.csv')
 
 duplicated_data = data['text'].duplicated().sum()
-print(f'Existen { duplicated_data } tweets duplicados')
 
 data = data.drop_duplicates(subset=['text'], keep='first')
 
@@ -272,67 +274,67 @@ fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 
 # BERT MODEL
 
-tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
+# tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
 
-def bert_encode(data, maximum_length):
-    input_ids = []
-    attention_masks = []
+# def bert_encode(data, maximum_length):
+#     input_ids = []
+#     attention_masks = []
 
-    for text in data:
-        encoded = tokenizer.encode_plus(
-            text,
-            add_special_tokens=True,
-            max_length=maximum_length,
-            pad_to_max_length=True,
-            return_attention_mask=True,
-        )
-        input_ids.append(encoded['input_ids'])
-        attention_masks.append(encoded['attention_mask'])
+#     for text in data:
+#         encoded = tokenizer.encode_plus(
+#             text,
+#             add_special_tokens=True,
+#             max_length=maximum_length,
+#             pad_to_max_length=True,
+#             return_attention_mask=True,
+#         )
+#         input_ids.append(encoded['input_ids'])
+#         attention_masks.append(encoded['attention_mask'])
 
-    return np.array(input_ids), np.array(attention_masks)
+#     return np.array(input_ids), np.array(attention_masks)
 
-text = data['text']
-target = data['target']
+# text = data['text']
+# target = data['target']
 
-train_input_ids, train_attention_masks = bert_encode(text, 60)
+# train_input_ids, train_attention_masks = bert_encode(text, 60)
 
-def create_model(bert_model):
+# def create_model(bert_model):
 
-    input_ids = tf.keras.Input(shape=(60,),dtype='int32')
-    attention_masks = tf.keras.Input(shape=(60,),dtype='int32')
+#     input_ids = tf.keras.Input(shape=(60,),dtype='int32')
+#     attention_masks = tf.keras.Input(shape=(60,),dtype='int32')
 
-    output = bert_model([input_ids,attention_masks])
-    output = output[1]
-    output = tf.keras.layers.Dense(32,activation='relu')(output)
-    output = tf.keras.layers.Dropout(0.2)(output)
-    output = tf.keras.layers.Dense(1,activation='sigmoid')(output)
+#     output = bert_model([input_ids,attention_masks])
+#     output = output[1]
+#     output = tf.keras.layers.Dense(32,activation='relu')(output)
+#     output = tf.keras.layers.Dropout(0.2)(output)
+#     output = tf.keras.layers.Dense(1,activation='sigmoid')(output)
 
-    model = tf.keras.models.Model(inputs = [input_ids,attention_masks],outputs = output)
-    model.compile(Adam(lr=1e-5), loss='binary_crossentropy', metrics=['accuracy'])
-    return model
+#     model = tf.keras.models.Model(inputs = [input_ids,attention_masks],outputs = output)
+#     model.compile(Adam(lr=1e-5), loss='binary_crossentropy', metrics=['accuracy'])
+#     return model
 
-bert_model = transformers.TFBertModel.from_pretrained('bert-base-uncased')
-model = create_model(bert_model)
-model.summary()
-history = model.fit(
-    [train_input_ids, train_attention_masks],
-    target,
-    validation_split=0.2,
-    epochs=1,
-    batch_size=10
-)
+# bert_model = transformers.TFBertModel.from_pretrained('bert-base-uncased')
+# model = create_model(bert_model)
+# model.summary()
+# history = model.fit(
+#     [train_input_ids, train_attention_masks],
+#     target,
+#     validation_split=0.2,
+#     epochs=1,
+#     batch_size=10
+# )
 
-def plot_learning_curves(history, arr):
-    fig, ax = plt.subplots(1, 2, figsize=(20, 5))
-    for idx in range(2):
-        ax[idx].plot(history.history[arr[idx][0]])
-        ax[idx].plot(history.history[arr[idx][1]])
-        ax[idx].legend([arr[idx][0], arr[idx][1]],fontsize=18)
-        ax[idx].set_xlabel('A ',fontsize=16)
-        ax[idx].set_ylabel('B',fontsize=16)
-        ax[idx].set_title(arr[idx][0] + ' X ' + arr[idx][1],fontsize=16)
+# def plot_learning_curves(history, arr):
+#     fig, ax = plt.subplots(1, 2, figsize=(20, 5))
+#     for idx in range(2):
+#         ax[idx].plot(history.history[arr[idx][0]])
+#         ax[idx].plot(history.history[arr[idx][1]])
+#         ax[idx].legend([arr[idx][0], arr[idx][1]],fontsize=18)
+#         ax[idx].set_xlabel('A ',fontsize=16)
+#         ax[idx].set_ylabel('B',fontsize=16)
+#         ax[idx].set_title(arr[idx][0] + ' X ' + arr[idx][1],fontsize=16)
 
-plot_learning_curves(history, [['loss', 'val_loss'],['accuracy', 'val_accuracy']])
+# plot_learning_curves(history, [['loss', 'val_loss'],['accuracy', 'val_accuracy']])
 
 
 
@@ -343,43 +345,41 @@ plot_learning_curves(history, [['loss', 'val_loss'],['accuracy', 'val_accuracy']
 
 # SPARK NLP MODEL
 
-# spark = sparknlp.start()
+spark = sparknlp.start()
 
-# df_train = spark.read.option("header", True).csv("clean_data.csv")
+df_train = spark.read.option("header", True).csv("clean_data.csv")
 
-# df_train = df_train.na.drop(how="any")
-# df_train.groupby("target").count().orderBy(col("count")).show()
+df_train = df_train.na.drop(how="any")
+df_train.groupby("target").count().orderBy(col("count")).show()
 
-# document = DocumentAssembler().setInputCol("text").setOutputCol("document")
+document = DocumentAssembler().setInputCol("text").setOutputCol("document")
 
-# use = UniversalSentenceEncoder.pretrained().setInputCols(["document"]).setOutputCol("sentence_embeddings")
+use = UniversalSentenceEncoder.pretrained().setInputCols(["document"]).setOutputCol("sentence_embeddings")
 
-# classsifierdl = ClassifierDLApproach().setInputCols(["sentence_embeddings"]).setOutputCol("class").setLabelColumn("target").setMaxEpochs(10).setEnableOutputLogs(True).setLr(0.004)
+classsifierdl = ClassifierDLApproach().setInputCols(["sentence_embeddings"]).setOutputCol("class").setLabelColumn("target").setMaxEpochs(10).setEnableOutputLogs(True).setLr(0.004)
 
-# nlpPipeline = Pipeline(
-#     stages = [
-#         document,
-#         use,
-#         classsifierdl
-#     ]
-# )
+nlpPipeline = Pipeline(
+    stages = [
+        document,
+        use,
+        classsifierdl
+    ]
+)
 
-# (train_set, test_set)= df_train.randomSplit([0.8, 0.2], seed=100)
+(train_set, test_set)= df_train.randomSplit([0.8, 0.2], seed=100)
 
-# use_model = nlpPipeline.fit(train_set)
+use_model = nlpPipeline.fit(train_set)
 
 # !cd ~/annotator_logs && ls -l
 
 # !cat ~/annotator_logs/ClassifierDLApproach_4c93d2227f55.log
 
-# prediction = use_model.transform(train_set)
-# prediction.select("target", "text", "class.result").show(5, truncate=False)
+prediction = use_model.transform(train_set)
+prediction.select("target", "text", "class.result").show(5, truncate=False)
 
-# df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
-# df["result"]= df["result"].apply(lambda x: x[0])
-# print(classification_report(df["target"], df["result"]))
-
-
+df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
+df["result"]= df["result"].apply(lambda x: x[0])
+print(classification_report(df["target"], df["result"]))
 
 
 
@@ -389,18 +389,54 @@ plot_learning_curves(history, [['loss', 'val_loss'],['accuracy', 'val_accuracy']
 
 
 
-app.layout = html.Div(children=[
+app.layout = html.Div(
+    [
+        html.H1('Disaster Tweets'),
+        html.I("Hola compadre, pone un tweet y te digo si es desastre o no"),
+        html.Br(),
+        dcc.Input(
+            id="inp_tweet",
+            type="text",
+            placeholder="",
+            debounce=True,
+            style={'width':'50%'}
+        ),
+        html.Div(id="output"),
+        html.Div(id="output_bert"),
+        html.Div(id="output_lstm"),
+        html.Div(id="output_sparknlp"),
+        # dcc.Graph(
+        #     id='example-graph',
+        #     figure=fig
+        # )
+    ]
+)
 
-    html.H1(children='Hello Dash'),
 
-    html.Div(children='''Dash: A web application framework for your data.'''),
+@app.callback(
+    Output("output", "children"),
+    Output("output_bert", "children"),
+    Output("output_lstm", "children"),
+    Output("output_sparknlp", "children"),
+    Input("inp_tweet", "value"),
+)
+def update_output(input1):
+    # return u'Input 1 {} ho {}'.format(input1, input1)
+    print(input1)
+    columns = ["id", "text"]
+    data = [("0", input1)]
+    rdd = spark.sparkContext.parallelize(data)
+    l = spark.createDataFrame(rdd).toDF(*columns)
+    # l.show()
+    prediction = use_model.transform(l)
+    # prediction.select("id", "text", "class.result").show(truncate=False)
+    pred = prediction.select("class.result").collect()
+    result = re.sub(r'[^0-9 ]+', '', str(pred[0]))
+    print(result)
 
-    dcc.Graph(
-        id='example-graph',
-        figure=fig
-    )
+    return (input1, result, input1, input1)
 
-])
+
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, host='127.0.0.1')
