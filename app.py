@@ -347,7 +347,17 @@ fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 
 # SPARK NLP MODEL
 
+
 spark = sparknlp.start()
+
+# spark = SparkSession.builder \
+#     .appName("Spark NLP")\
+#     .master("local[4]")\
+#     .config("spark.driver.memory","16G")\
+#     .config("spark.driver.maxResultSize", "0") \
+#     .config("spark.kryoserializer.buffer.max", "2000M")\
+#     .config("spark.jars.packages", "com.johnsnowlabs.nlp:spark-nlp_2.12:3.3.2")\
+#     .getOrCreate()
 
 df_train = spark.read.option("header", True).csv("clean_data.csv")
 
@@ -402,7 +412,7 @@ app.layout = html.Div(
             placeholder="Enter a tweet...",
             debounce=True,
             style={
-                'width': '99%',
+                'width': '98.2%',
                 'margin-bottom': '15px',
                 'padding': '10px',
                 'border-radius': '10px',
@@ -470,18 +480,19 @@ app.layout = html.Div(
 )
 def update_output(input1):
     print(input1)
-    columns = ["id", "text"]
-    data = [("0", input1)]
-    rdd = spark.sparkContext.parallelize(data)
-    l = spark.createDataFrame(rdd).toDF(*columns)
-    # l.show()
-    prediction = use_model.transform(l)
-    # prediction.select("id", "text", "class.result").show(truncate=False)
-    pred = prediction.select("class.result").collect()
-    res_sparkNLP = re.sub(r'[^0-9 ]+', '', str(pred[0]))
-    # print(res_sparkNLP)
-
-    return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(res_sparkNLP))
+    if input1 != None:
+        columns = ["id", "text"]
+        data = [("0", input1)]
+        rdd = spark.sparkContext.parallelize(data)
+        l = spark.createDataFrame(rdd).toDF(*columns)
+        # l.show()
+        prediction = use_model.transform(l)
+        # prediction.select("id", "text", "class.result").show(truncate=False)
+        pred = prediction.select("class.result").collect()
+        res_sparkNLP = re.sub(r'[^0-9 ]+', '', str(pred[0]))
+        # print(res_sparkNLP)
+        return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(res_sparkNLP))
+    return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(input1))
 
 
 
