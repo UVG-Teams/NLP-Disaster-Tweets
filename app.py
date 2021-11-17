@@ -348,50 +348,41 @@ fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 # SPARK NLP MODEL
 
 
-spark = sparknlp.start()
+# spark = sparknlp.start()
 
-# spark = SparkSession.builder \
-#     .appName("Spark NLP")\
-#     .master("local[4]")\
-#     .config("spark.driver.memory","16G")\
-#     .config("spark.driver.maxResultSize", "0") \
-#     .config("spark.kryoserializer.buffer.max", "2000M")\
-#     .config("spark.jars.packages", "com.johnsnowlabs.nlp:spark-nlp_2.12:3.3.2")\
-#     .getOrCreate()
+# df_train = spark.read.option("header", True).csv("clean_data.csv")
 
-df_train = spark.read.option("header", True).csv("clean_data.csv")
+# df_train = df_train.na.drop(how="any")
+# df_train.groupby("target").count().orderBy(col("count")).show()
 
-df_train = df_train.na.drop(how="any")
-df_train.groupby("target").count().orderBy(col("count")).show()
+# document = DocumentAssembler().setInputCol("text").setOutputCol("document")
 
-document = DocumentAssembler().setInputCol("text").setOutputCol("document")
+# use = UniversalSentenceEncoder.pretrained().setInputCols(["document"]).setOutputCol("sentence_embeddings")
 
-use = UniversalSentenceEncoder.pretrained().setInputCols(["document"]).setOutputCol("sentence_embeddings")
+# classsifierdl = ClassifierDLApproach().setInputCols(["sentence_embeddings"]).setOutputCol("class").setLabelColumn("target").setMaxEpochs(10).setEnableOutputLogs(True).setLr(0.004)
 
-classsifierdl = ClassifierDLApproach().setInputCols(["sentence_embeddings"]).setOutputCol("class").setLabelColumn("target").setMaxEpochs(10).setEnableOutputLogs(True).setLr(0.004)
+# nlpPipeline = Pipeline(
+#     stages = [
+#         document,
+#         use,
+#         classsifierdl
+#     ]
+# )
 
-nlpPipeline = Pipeline(
-    stages = [
-        document,
-        use,
-        classsifierdl
-    ]
-)
+# (train_set, test_set)= df_train.randomSplit([0.8, 0.2], seed=100)
 
-(train_set, test_set)= df_train.randomSplit([0.8, 0.2], seed=100)
+# use_model = nlpPipeline.fit(train_set)
 
-use_model = nlpPipeline.fit(train_set)
+# # !cd ~/annotator_logs && ls -l
 
-# !cd ~/annotator_logs && ls -l
+# # !cat ~/annotator_logs/ClassifierDLApproach_4c93d2227f55.log
 
-# !cat ~/annotator_logs/ClassifierDLApproach_4c93d2227f55.log
+# prediction = use_model.transform(train_set)
+# prediction.select("target", "text", "class.result").show(5, truncate=False)
 
-prediction = use_model.transform(train_set)
-prediction.select("target", "text", "class.result").show(5, truncate=False)
-
-df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
-df["result"]= df["result"].apply(lambda x: x[0])
-print(classification_report(df["target"], df["result"]))
+# df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
+# df["result"]= df["result"].apply(lambda x: x[0])
+# print(classification_report(df["target"], df["result"]))
 
 
 
@@ -480,18 +471,18 @@ app.layout = html.Div(
 )
 def update_output(input1):
     print(input1)
-    if input1 != None:
-        columns = ["id", "text"]
-        data = [("0", input1)]
-        rdd = spark.sparkContext.parallelize(data)
-        l = spark.createDataFrame(rdd).toDF(*columns)
-        # l.show()
-        prediction = use_model.transform(l)
-        # prediction.select("id", "text", "class.result").show(truncate=False)
-        pred = prediction.select("class.result").collect()
-        res_sparkNLP = re.sub(r'[^0-9 ]+', '', str(pred[0]))
-        # print(res_sparkNLP)
-        return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(res_sparkNLP))
+    # if input1 != None:
+    #     columns = ["id", "text"]
+    #     data = [("0", input1)]
+    #     rdd = spark.sparkContext.parallelize(data)
+    #     l = spark.createDataFrame(rdd).toDF(*columns)
+    #     # l.show()
+    #     prediction = use_model.transform(l)
+    #     # prediction.select("id", "text", "class.result").show(truncate=False)
+    #     pred = prediction.select("class.result").collect()
+    #     res_sparkNLP = re.sub(r'[^0-9 ]+', '', str(pred[0]))
+    #     # print(res_sparkNLP)
+    #     return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(res_sparkNLP))
     return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(input1))
 
 
