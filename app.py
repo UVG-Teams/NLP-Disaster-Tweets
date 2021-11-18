@@ -18,6 +18,7 @@ from sparknlp.annotator import *
 from nltk.corpus import stopwords
 import pyspark.sql.functions as F
 from keras.models import Sequential
+from sklearn.metrics import f1_score
 from geopy.geocoders import Nominatim
 from pyspark.sql.functions import col
 from transformers import BertTokenizer
@@ -30,11 +31,13 @@ from keras.preprocessing.text import Tokenizer
 from tensorflow.keras.layers import Dense, Input
 from geopy.extra.rate_limiter import RateLimiter
 from sparknlp.pretrained import PretrainedPipeline
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import ModelCheckpoint
 from keras.preprocessing.sequence import pad_sequences
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 from sklearn.metrics import classification_report, accuracy_score
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics import (precision_score, recall_score, f1_score, classification_report, accuracy_score)
 from keras.layers import (LSTM, Embedding, BatchNormalization, Dense, TimeDistributed, Dropout, Bidirectional, Flatten, GlobalMaxPool1D)
 
@@ -274,7 +277,13 @@ keywords = data['keyword'].value_counts().nlargest()
 fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 
 
+
+
+
 # BERT MODEL
+
+
+
 
 # tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
 
@@ -344,158 +353,168 @@ fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 
 # LSTM MODEL
 
-test_df = pd.read_csv("test.csv")
-
-stop_words = stopwords.words('english')
-more_stopwords = ['u', 'im', 'c']
-stop_words = stop_words + more_stopwords
-
-stemmer = nltk.SnowballStemmer("english")
-
-def preprocess_data(text):
-    text = clean_text(text)
-    text = ' '.join(stemmer.stem(word) for word in text.split(' ') if word not in stop_words)
-
-    return text
-
-def clean_text(text):
-    '''Make text lowercase, remove text in square brackets,remove links,remove punctuation
-    and remove words containing numbers.'''
-    text = str(text).lower()
-    text = re.sub('\[.*?\]', '', text)
-    text = re.sub('https?://\S+|www\.\S+', '', text)
-    text = re.sub('<.*?>+', '', text)
-    text = re.sub('[%s]' % re.escape(string.punctuation), '', text)
-    text = re.sub('\n', '', text)
-    text = re.sub('\w*\d\w*', '', text)
-    return text
 
 
-test_df['text'] = test_df['text'].apply(preprocess_data)
-
-train_tweets = data['text'].values
-test_tweets = test_df['text'].values
-train_target = data['target'].values
 
 
-word_tokenizer = Tokenizer()
-word_tokenizer.fit_on_texts(train_tweets)
+# test_df = pd.read_csv("test.csv")
 
-vocab_length = len(word_tokenizer.word_index) + 1
+# stop_words = stopwords.words('english')
+# more_stopwords = ['u', 'im', 'c']
+# stop_words = stop_words + more_stopwords
 
+# stemmer = nltk.SnowballStemmer("english")
 
-def show_metrics(pred_tag, y_test):
-    print("F1-score: ", f1_score(pred_tag, y_test))
-    print("Precision: ", precision_score(pred_tag, y_test))
-    print("Recall: ", recall_score(pred_tag, y_test))
-    print("Acuracy: ", accuracy_score(pred_tag, y_test))
-    print("-"*50)
-    print(classification_report(pred_tag, y_test))
+# def preprocess_data(text):
+#     text = clean_text(text)
+#     text = ' '.join(stemmer.stem(word) for word in text.split(' ') if word not in stop_words)
 
-def embed(corpus):
-    return word_tokenizer.texts_to_sequences(corpus)
+#     return text
 
-longest_train = max(train_tweets, key=lambda sentence: len(word_tokenize(sentence)))
-length_long_sentence = len(word_tokenize(longest_train))
-
-train_padded_sentences = pad_sequences(
-    embed(train_tweets),
-    length_long_sentence,
-    padding='post'
-)
-
-test_padded_sentences = pad_sequences(
-    embed(test_tweets),
-    length_long_sentence,
-    padding='post'
-)
-
-embeddings_dictionary = dict()
-embedding_dim = 100
-
-with open('glove.6B.100d.txt') as fp:
-    for line in fp.readlines():
-        records = line.split()
-        word = records[0]
-        vector_dimensions = np.asarray(records[1:], dtype='float32')
-        embeddings_dictionary [word] = vector_dimensions
+# def clean_text(text):
+#     '''Make text lowercase, remove text in square brackets,remove links,remove punctuation
+#     and remove words containing numbers.'''
+#     text = str(text).lower()
+#     text = re.sub('\[.*?\]', '', text)
+#     text = re.sub('https?://\S+|www\.\S+', '', text)
+#     text = re.sub('<.*?>+', '', text)
+#     text = re.sub('[%s]' % re.escape(string.punctuation), '', text)
+#     text = re.sub('\n', '', text)
+#     text = re.sub('\w*\d\w*', '', text)
+#     return text
 
 
-embedding_matrix = np.zeros((vocab_length, embedding_dim))
+# test_df['text'] = test_df['text'].apply(preprocess_data)
 
-for word, index in word_tokenizer.word_index.items():
-    embedding_vector = embeddings_dictionary.get(word)
-    if embedding_vector is not None:
-        embedding_matrix[index] = embedding_vector
+# train_tweets = data['text'].values
+# test_tweets = test_df['text'].values
+# train_target = data['target'].values
 
-X_train, X_test, y_train, y_test = train_test_split(
-    train_padded_sentences,
-    train_target,
-    test_size=0.25
-)
 
-def glove_lstm():
-    model = Sequential()
+# word_tokenizer = Tokenizer()
+# word_tokenizer.fit_on_texts(train_tweets)
 
-    model.add(Embedding(
-        input_dim=embedding_matrix.shape[0],
-        output_dim=embedding_matrix.shape[1],
-        weights = [embedding_matrix],
-        input_length=length_long_sentence
-    ))
+# vocab_length = len(word_tokenizer.word_index) + 1
 
-    model.add(Bidirectional(LSTM(
-        length_long_sentence,
-        return_sequences = True,
-        recurrent_dropout=0.2
-    )))
 
-    model.add(GlobalMaxPool1D())
-    model.add(BatchNormalization())
-    model.add(Dropout(0.5))
-    model.add(Dense(length_long_sentence, activation = "relu"))
-    model.add(Dropout(0.5))
-    model.add(Dense(length_long_sentence, activation = "relu"))
-    model.add(Dropout(0.5))
-    model.add(Dense(1, activation = 'sigmoid'))
-    model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+# def show_metrics(pred_tag, y_test):
+#     print("F1-score: ", f1_score(pred_tag, y_test))
+#     print("Precision: ", precision_score(pred_tag, y_test))
+#     print("Recall: ", recall_score(pred_tag, y_test))
+#     print("Acuracy: ", accuracy_score(pred_tag, y_test))
+#     print("-"*50)
+#     print(classification_report(pred_tag, y_test))
 
-    return model
+# def embed(corpus):
+#     return word_tokenizer.texts_to_sequences(corpus)
 
-model = glove_lstm()
-model.summary()
+# longest_train = max(train_tweets, key=lambda sentence: len(word_tokenize(sentence)))
+# length_long_sentence = len(word_tokenize(longest_train))
 
-model = glove_lstm()
+# train_padded_sentences = pad_sequences(
+#     embed(train_tweets),
+#     length_long_sentence,
+#     padding='post'
+# )
 
-checkpoint = ModelCheckpoint(
-    'model.h5',
-    monitor = 'val_loss',
-    verbose = 1,
-    save_best_only = True
-)
-reduce_lr = ReduceLROnPlateau(
-    monitor = 'val_loss',
-    factor = 0.2,
-    verbose = 1,
-    patience = 5,
-    min_lr = 0.001
-)
-history = model.fit(
-    X_train,
-    y_train,
-    epochs = 7,
-    batch_size = 32,
-    validation_data = (X_test, y_test),
-    verbose = 1,
-    callbacks = [reduce_lr, checkpoint]
-)
+# test_padded_sentences = pad_sequences(
+#     embed(test_tweets),
+#     length_long_sentence,
+#     padding='post'
+# )
 
-preds = (model.predict(X_test) > 0.5).astype("int32")
+# embeddings_dictionary = dict()
+# embedding_dim = 100
 
-show_metrics(preds, y_test)
+# with open('glove.6B.100d.txt') as fp:
+#     for line in fp.readlines():
+#         records = line.split()
+#         word = records[0]
+#         vector_dimensions = np.asarray(records[1:], dtype='float32')
+#         embeddings_dictionary [word] = vector_dimensions
+
+
+# embedding_matrix = np.zeros((vocab_length, embedding_dim))
+
+# for word, index in word_tokenizer.word_index.items():
+#     embedding_vector = embeddings_dictionary.get(word)
+#     if embedding_vector is not None:
+#         embedding_matrix[index] = embedding_vector
+
+# X_train, X_test, y_train, y_test = train_test_split(
+#     train_padded_sentences,
+#     train_target,
+#     test_size=0.25
+# )
+
+# def glove_lstm():
+#     model = Sequential()
+
+#     model.add(Embedding(
+#         input_dim=embedding_matrix.shape[0],
+#         output_dim=embedding_matrix.shape[1],
+#         weights = [embedding_matrix],
+#         input_length=length_long_sentence
+#     ))
+
+#     model.add(Bidirectional(LSTM(
+#         length_long_sentence,
+#         return_sequences = True,
+#         recurrent_dropout=0.2
+#     )))
+
+#     model.add(GlobalMaxPool1D())
+#     model.add(BatchNormalization())
+#     model.add(Dropout(0.5))
+#     model.add(Dense(length_long_sentence, activation = "relu"))
+#     model.add(Dropout(0.5))
+#     model.add(Dense(length_long_sentence, activation = "relu"))
+#     model.add(Dropout(0.5))
+#     model.add(Dense(1, activation = 'sigmoid'))
+#     model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+
+#     return model
+
+# model = glove_lstm()
+# model.summary()
+
+# model = glove_lstm()
+
+# checkpoint = ModelCheckpoint(
+#     'model.h5',
+#     monitor = 'val_loss',
+#     verbose = 1,
+#     save_best_only = True
+# )
+# reduce_lr = ReduceLROnPlateau(
+#     monitor = 'val_loss',
+#     factor = 0.2,
+#     verbose = 1,
+#     patience = 5,
+#     min_lr = 0.001
+# )
+# history = model.fit(
+#     X_train,
+#     y_train,
+#     epochs = 7,
+#     batch_size = 32,
+#     validation_data = (X_test, y_test),
+#     verbose = 1,
+#     callbacks = [reduce_lr, checkpoint]
+# )
+
+# preds = (model.predict(X_test) > 0.5).astype("int32")
+
+# show_metrics(preds, y_test)
+
+
+
 
 
 # SPARK NLP MODEL
+
+
+
 
 
 # spark = sparknlp.start()
@@ -539,7 +558,32 @@ show_metrics(preds, y_test)
 
 
 
+# Logistic Regression MODEL
 
+
+
+
+vectorizer = CountVectorizer(analyzer='word', binary=True, stop_words='english')
+vectorizer.fit(data['text'])
+
+x = vectorizer.transform(data['text']).todense()
+y = data['target'].values
+
+
+X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=2021)
+
+model = LogisticRegression(C=1.0, random_state=111)
+model.fit(X_train, y_train)
+
+y_pred = model.predict(X_test)
+
+f1score = f1_score(y_test, y_pred)
+print(f"Model Score: {f1score * 100:.2f} %")
+
+
+
+
+# HTML
 
 
 app.layout = html.Div(
@@ -563,9 +607,9 @@ app.layout = html.Div(
         html.Div(id="output"),
         html.Div([
             html.Div([
-                html.H4("Bert")
+                html.H4("Logistic Regression")
             ],
-                id="output_bert",
+                id="output_lr",
                 style={
                     'background': 'green',
                     'width': '30%',
@@ -614,7 +658,7 @@ app.layout = html.Div(
 
 @app.callback(
     Output("output", "children"),
-    Output("output_bert", "children"),
+    Output("output_lr", "children"),
     Output("output_lstm", "children"),
     Output("output_sparknlp", "children"),
     Input("inp_tweet", "value"),
@@ -622,9 +666,11 @@ app.layout = html.Div(
 
 def update_output(input1):
     print(input1)
-    lstm_format = pad_sequences(embed(input1), length_long_sentence, padding='post')
-    predlstml = model.predict(lstm_format)
-    print(predlstml)
+    # lstm_format = pad_sequences(embed(input1), length_long_sentence, padding='post')
+    # predlstml = model.predict(lstm_format)
+    # print(predlstml)
+    val_lr = vectorizer.transform([input1]).todense()
+    pred_lr = model.predict(val_lr)
 
     # if input1 != None:
     #     columns = ["id", "text"]
@@ -638,7 +684,7 @@ def update_output(input1):
     #     res_sparkNLP = re.sub(r'[^0-9 ]+', '', str(pred[0]))
     #     # print(res_sparkNLP)
     #     return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(res_sparkNLP))
-    return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(predlstml), 'SparkNLP: \n {}'.format(input1))
+    return (input1, 'Logistic Regression: \n {}'.format(pred_lr[0]), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(input1))
 
 
 
