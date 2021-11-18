@@ -344,54 +344,195 @@ fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 
 # LSTM MODEL
 
+test_df = pd.read_csv("test.csv")
+
+stop_words = stopwords.words('english')
+more_stopwords = ['u', 'im', 'c']
+stop_words = stop_words + more_stopwords
+
+stemmer = nltk.SnowballStemmer("english")
+
+def preprocess_data(text):
+    text = clean_text(text)
+    text = ' '.join(stemmer.stem(word) for word in text.split(' ') if word not in stop_words)
+
+    return text
+
+def clean_text(text):
+    '''Make text lowercase, remove text in square brackets,remove links,remove punctuation
+    and remove words containing numbers.'''
+    text = str(text).lower()
+    text = re.sub('\[.*?\]', '', text)
+    text = re.sub('https?://\S+|www\.\S+', '', text)
+    text = re.sub('<.*?>+', '', text)
+    text = re.sub('[%s]' % re.escape(string.punctuation), '', text)
+    text = re.sub('\n', '', text)
+    text = re.sub('\w*\d\w*', '', text)
+    return text
+
+
+test_df['text'] = test_df['text'].apply(preprocess_data)
+
+train_tweets = data['text'].values
+test_tweets = test_df['text'].values
+train_target = data['target'].values
+
+
+word_tokenizer = Tokenizer()
+word_tokenizer.fit_on_texts(train_tweets)
+
+vocab_length = len(word_tokenizer.word_index) + 1
+
+
+def show_metrics(pred_tag, y_test):
+    print("F1-score: ", f1_score(pred_tag, y_test))
+    print("Precision: ", precision_score(pred_tag, y_test))
+    print("Recall: ", recall_score(pred_tag, y_test))
+    print("Acuracy: ", accuracy_score(pred_tag, y_test))
+    print("-"*50)
+    print(classification_report(pred_tag, y_test))
+
+def embed(corpus):
+    return word_tokenizer.texts_to_sequences(corpus)
+
+longest_train = max(train_tweets, key=lambda sentence: len(word_tokenize(sentence)))
+length_long_sentence = len(word_tokenize(longest_train))
+
+train_padded_sentences = pad_sequences(
+    embed(train_tweets),
+    length_long_sentence,
+    padding='post'
+)
+
+test_padded_sentences = pad_sequences(
+    embed(test_tweets),
+    length_long_sentence,
+    padding='post'
+)
+
+embeddings_dictionary = dict()
+embedding_dim = 100
+
+with open('glove.6B.100d.txt') as fp:
+    for line in fp.readlines():
+        records = line.split()
+        word = records[0]
+        vector_dimensions = np.asarray(records[1:], dtype='float32')
+        embeddings_dictionary [word] = vector_dimensions
+
+
+embedding_matrix = np.zeros((vocab_length, embedding_dim))
+
+for word, index in word_tokenizer.word_index.items():
+    embedding_vector = embeddings_dictionary.get(word)
+    if embedding_vector is not None:
+        embedding_matrix[index] = embedding_vector
+
+X_train, X_test, y_train, y_test = train_test_split(
+    train_padded_sentences,
+    train_target,
+    test_size=0.25
+)
+
+def glove_lstm():
+    model = Sequential()
+
+    model.add(Embedding(
+        input_dim=embedding_matrix.shape[0],
+        output_dim=embedding_matrix.shape[1],
+        weights = [embedding_matrix],
+        input_length=length_long_sentence
+    ))
+
+    model.add(Bidirectional(LSTM(
+        length_long_sentence,
+        return_sequences = True,
+        recurrent_dropout=0.2
+    )))
+
+    model.add(GlobalMaxPool1D())
+    model.add(BatchNormalization())
+    model.add(Dropout(0.5))
+    model.add(Dense(length_long_sentence, activation = "relu"))
+    model.add(Dropout(0.5))
+    model.add(Dense(length_long_sentence, activation = "relu"))
+    model.add(Dropout(0.5))
+    model.add(Dense(1, activation = 'sigmoid'))
+    model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+
+    return model
+
+model = glove_lstm()
+model.summary()
+
+model = glove_lstm()
+
+checkpoint = ModelCheckpoint(
+    'model.h5',
+    monitor = 'val_loss',
+    verbose = 1,
+    save_best_only = True
+)
+reduce_lr = ReduceLROnPlateau(
+    monitor = 'val_loss',
+    factor = 0.2,
+    verbose = 1,
+    patience = 5,
+    min_lr = 0.001
+)
+history = model.fit(
+    X_train,
+    y_train,
+    epochs = 7,
+    batch_size = 32,
+    validation_data = (X_test, y_test),
+    verbose = 1,
+    callbacks = [reduce_lr, checkpoint]
+)
+
+preds = (model.predict(X_test) > 0.5).astype("int32")
+
+show_metrics(preds, y_test)
+
 
 # SPARK NLP MODEL
 
 
-spark = sparknlp.start()
+# spark = sparknlp.start()
 
-# spark = SparkSession.builder \
-#     .appName("Spark NLP")\
-#     .master("local[4]")\
-#     .config("spark.driver.memory","16G")\
-#     .config("spark.driver.maxResultSize", "0") \
-#     .config("spark.kryoserializer.buffer.max", "2000M")\
-#     .config("spark.jars.packages", "com.johnsnowlabs.nlp:spark-nlp_2.12:3.3.2")\
-#     .getOrCreate()
+# df_train = spark.read.option("header", True).csv("clean_data.csv")
 
-df_train = spark.read.option("header", True).csv("clean_data.csv")
+# df_train = df_train.na.drop(how="any")
+# df_train.groupby("target").count().orderBy(col("count")).show()
 
-df_train = df_train.na.drop(how="any")
-df_train.groupby("target").count().orderBy(col("count")).show()
+# document = DocumentAssembler().setInputCol("text").setOutputCol("document")
 
-document = DocumentAssembler().setInputCol("text").setOutputCol("document")
+# use = UniversalSentenceEncoder.pretrained().setInputCols(["document"]).setOutputCol("sentence_embeddings")
 
-use = UniversalSentenceEncoder.pretrained().setInputCols(["document"]).setOutputCol("sentence_embeddings")
+# classsifierdl = ClassifierDLApproach().setInputCols(["sentence_embeddings"]).setOutputCol("class").setLabelColumn("target").setMaxEpochs(10).setEnableOutputLogs(True).setLr(0.004)
 
-classsifierdl = ClassifierDLApproach().setInputCols(["sentence_embeddings"]).setOutputCol("class").setLabelColumn("target").setMaxEpochs(10).setEnableOutputLogs(True).setLr(0.004)
+# nlpPipeline = Pipeline(
+#     stages = [
+#         document,
+#         use,
+#         classsifierdl
+#     ]
+# )
 
-nlpPipeline = Pipeline(
-    stages = [
-        document,
-        use,
-        classsifierdl
-    ]
-)
+# (train_set, test_set)= df_train.randomSplit([0.8, 0.2], seed=100)
 
-(train_set, test_set)= df_train.randomSplit([0.8, 0.2], seed=100)
+# use_model = nlpPipeline.fit(train_set)
 
-use_model = nlpPipeline.fit(train_set)
+# # !cd ~/annotator_logs && ls -l
 
-# !cd ~/annotator_logs && ls -l
+# # !cat ~/annotator_logs/ClassifierDLApproach_4c93d2227f55.log
 
-# !cat ~/annotator_logs/ClassifierDLApproach_4c93d2227f55.log
+# prediction = use_model.transform(train_set)
+# prediction.select("target", "text", "class.result").show(5, truncate=False)
 
-prediction = use_model.transform(train_set)
-prediction.select("target", "text", "class.result").show(5, truncate=False)
-
-df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
-df["result"]= df["result"].apply(lambda x: x[0])
-print(classification_report(df["target"], df["result"]))
+# df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
+# df["result"]= df["result"].apply(lambda x: x[0])
+# print(classification_report(df["target"], df["result"]))
 
 
 
@@ -478,21 +619,26 @@ app.layout = html.Div(
     Output("output_sparknlp", "children"),
     Input("inp_tweet", "value"),
 )
+
 def update_output(input1):
     print(input1)
-    if input1 != None:
-        columns = ["id", "text"]
-        data = [("0", input1)]
-        rdd = spark.sparkContext.parallelize(data)
-        l = spark.createDataFrame(rdd).toDF(*columns)
-        # l.show()
-        prediction = use_model.transform(l)
-        # prediction.select("id", "text", "class.result").show(truncate=False)
-        pred = prediction.select("class.result").collect()
-        res_sparkNLP = re.sub(r'[^0-9 ]+', '', str(pred[0]))
-        # print(res_sparkNLP)
-        return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(res_sparkNLP))
-    return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(input1))
+    lstm_format = pad_sequences(embed(input1), length_long_sentence, padding='post')
+    predlstml = model.predict(lstm_format)
+    print(predlstml)
+
+    # if input1 != None:
+    #     columns = ["id", "text"]
+    #     data = [("0", input1)]
+    #     rdd = spark.sparkContext.parallelize(data)
+    #     l = spark.createDataFrame(rdd).toDF(*columns)
+    #     # l.show()
+    #     prediction = use_model.transform(l)
+    #     # prediction.select("id", "text", "class.result").show(truncate=False)
+    #     pred = prediction.select("class.result").collect()
+    #     res_sparkNLP = re.sub(r'[^0-9 ]+', '', str(pred[0]))
+    #     # print(res_sparkNLP)
+    #     return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(res_sparkNLP))
+    return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(predlstml), 'SparkNLP: \n {}'.format(input1))
 
 
 
