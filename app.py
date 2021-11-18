@@ -2,7 +2,7 @@ import os
 import re
 import nltk
 import string
-import folium
+# import folium
 import sparknlp
 import numpy as np
 import pandas as pd
@@ -24,7 +24,7 @@ from pyspark.sql.functions import col
 from transformers import BertTokenizer
 from nltk.tokenize import word_tokenize
 from tensorflow.keras.models import Model
-from wordcloud import WordCloud, STOPWORDS
+# from wordcloud import WordCloud, STOPWORDS
 from tensorflow.keras.optimizers import Adam
 from tokenizers import BertWordPieceTokenizer
 from keras.preprocessing.text import Tokenizer
@@ -512,45 +512,36 @@ fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 
 
 # SPARK NLP MODEL
+spark = sparknlp.start()
 
+df_train = spark.read.option("header", True).csv("clean_data.csv")
 
+df_train = df_train.na.drop(how="any")
+df_train.groupby("target").count().orderBy(col("count"))
 
+document = DocumentAssembler().setInputCol("text").setOutputCol("document")
 
+use = UniversalSentenceEncoder.pretrained().setInputCols(["document"]).setOutputCol("sentence_embeddings")
 
-# spark = sparknlp.start()
+classsifierdl = ClassifierDLApproach().setInputCols(["sentence_embeddings"]).setOutputCol("class").setLabelColumn("target").setMaxEpochs(10).setEnableOutputLogs(True).setLr(0.004)
 
-# df_train = spark.read.option("header", True).csv("clean_data.csv")
+nlpPipeline = Pipeline(
+    stages = [
+        document,
+        use,
+        classsifierdl
+    ]
+)
 
-# df_train = df_train.na.drop(how="any")
-# df_train.groupby("target").count().orderBy(col("count")).show()
+(train_set, test_set)= df_train.randomSplit([0.8, 0.2], seed=100)
 
-# document = DocumentAssembler().setInputCol("text").setOutputCol("document")
+use_model = nlpPipeline.fit(train_set)
 
-# use = UniversalSentenceEncoder.pretrained().setInputCols(["document"]).setOutputCol("sentence_embeddings")
-
-# classsifierdl = ClassifierDLApproach().setInputCols(["sentence_embeddings"]).setOutputCol("class").setLabelColumn("target").setMaxEpochs(10).setEnableOutputLogs(True).setLr(0.004)
-
-# nlpPipeline = Pipeline(
-#     stages = [
-#         document,
-#         use,
-#         classsifierdl
-#     ]
-# )
-
-# (train_set, test_set)= df_train.randomSplit([0.8, 0.2], seed=100)
-
-# use_model = nlpPipeline.fit(train_set)
-
-# # !cd ~/annotator_logs && ls -l
-
-# # !cat ~/annotator_logs/ClassifierDLApproach_4c93d2227f55.log
-
-# prediction = use_model.transform(train_set)
+prediction = use_model.transform(train_set)
 # prediction.select("target", "text", "class.result").show(5, truncate=False)
 
-# df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
-# df["result"]= df["result"].apply(lambda x: x[0])
+df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
+df["result"]= df["result"].apply(lambda x: x[0])
 # print(classification_report(df["target"], df["result"]))
 
 
@@ -559,10 +550,6 @@ fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 
 
 # Logistic Regression MODEL
-
-
-
-
 vectorizer = CountVectorizer(analyzer='word', binary=True, stop_words='english')
 vectorizer.fit(data['text'])
 
@@ -578,7 +565,7 @@ model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 
 f1score = f1_score(y_test, y_pred)
-print(f"Model Score: {f1score * 100:.2f} %")
+# print(f"Model Score: {f1score * 100:.2f} %")
 
 
 
@@ -588,8 +575,8 @@ print(f"Model Score: {f1score * 100:.2f} %")
 
 app.layout = html.Div(
     [
-        html.H1('Disaster Tweets'),
-        html.I("Hola compadre, pone un tweet y te digo si es desastre o no"),
+        html.H1('Disaster tweet classifier'),
+        html.I("Enter a tweet to classify as disaster or non-disaster"),
         html.Br(),
         dcc.Input(
             id="inp_tweet",
@@ -644,21 +631,27 @@ app.layout = html.Div(
                     'padding-bottom': '15px',
                 }
             ),
+        ], style = {
+            'display':'flex',
+            'justify-content':'space-between'
+        }),
+        html.Div([
             html.Div(
                 id="output_global",
                 style={
                     'background': '#6096ba',
-                    'width': '30%',
+                    'width': '50%',
                     'font-size': '20px',
                     'text-align': 'center',
                     'border-radius': '20px',
                     'padding-top': '15px',
                     'padding-bottom': '15px',
+                    'margin-top': '15px',
                 }
             ),
         ], style = {
             'display':'flex',
-            'justify-content':'space-between'
+            'justify-content':'center'
         }),
         # dcc.Graph(
         #     id='example-graph',
@@ -681,13 +674,13 @@ def update_output(input):
     pred_lr = -1
     pred_lstm = -1
     pred_sparkNLP = -1
-    global_pred = "No desastre"
+    global_pred = "Non-disaster"
     print(input)
     # lstm_format = pad_sequences(embed(input), length_long_sentence, padding='post')
     # predlstml = model.predict(lstm_format)
     # print(predlstml)
 
-    if input is not None:
+    if input:
         # Logistic Regression
         val_lr = vectorizer.transform([input]).todense()
         pred_lr_list = model.predict(val_lr)
@@ -698,20 +691,18 @@ def update_output(input):
         if len(pred_lr_list) > 0:
             pred_lr = pred_lr_list[0]
 
-        # columns = ["id", "text"]
-        # data = [("0", input)]
-        # rdd = spark.sparkContext.parallelize(data)
-        # l = spark.createDataFrame(rdd).toDF(*columns)
-        # # l.show()
-        # prediction = use_model.transform(l)
-        # # prediction.select("id", "text", "class.result").show(truncate=False)
-        # pred = prediction.select("class.result").collect()
-        # res_sparkNLP = re.sub(r'[^0-9 ]+', '', str(pred[0]))
-        # # print(res_sparkNLP)
-        # return (input, 'Bert: \n {}'.format(input), 'LSTM: \n {}'.format(input), 'SparkNLP: \n {}'.format(res_sparkNLP))
 
-        global_pred = (pred_lr + pred_lstm + pred_sparkNLP) / 3
-        global_pred = "Desastre" if global_pred >= 0.5 else "No desastre"
+        # SparkNLP
+        spark_columns = ["id", "text"]
+        spark_data = [("0", input)]
+        rdd = spark.sparkContext.parallelize(spark_data)
+        l = spark.createDataFrame(rdd).toDF(*spark_columns)
+        spark_prediction = use_model.transform(l)
+        predSp = spark_prediction.select("class.result").collect()
+        pred_sparkNLP = re.sub(r'[^0-9 ]+', '', str(predSp[0]))
+
+        global_pred = (pred_lr + pred_lstm + int(pred_sparkNLP)) / 3
+        global_pred = "Disaster" if global_pred >= 0.5 else "Non-disaster"
 
     return (
         input,
