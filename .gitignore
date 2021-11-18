@@ -132,3 +132,6 @@ venv
 *.pyc
 .DS_Store
 .env
+
+
+glove.6B.100d.txt
