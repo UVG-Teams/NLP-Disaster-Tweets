@@ -280,82 +280,7 @@ fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 
 
 
-# BERT MODEL
-
-
-
-
-# tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
-
-# def bert_encode(data, maximum_length):
-#     input_ids = []
-#     attention_masks = []
-
-#     for text in data:
-#         encoded = tokenizer.encode_plus(
-#             text,
-#             add_special_tokens=True,
-#             max_length=maximum_length,
-#             pad_to_max_length=True,
-#             return_attention_mask=True,
-#         )
-#         input_ids.append(encoded['input_ids'])
-#         attention_masks.append(encoded['attention_mask'])
-
-#     return np.array(input_ids), np.array(attention_masks)
-
-# text = data['text']
-# target = data['target']
-
-# train_input_ids, train_attention_masks = bert_encode(text, 60)
-
-# def create_model(bert_model):
-
-#     input_ids = tf.keras.Input(shape=(60,),dtype='int32')
-#     attention_masks = tf.keras.Input(shape=(60,),dtype='int32')
-
-#     output = bert_model([input_ids,attention_masks])
-#     output = output[1]
-#     output = tf.keras.layers.Dense(32,activation='relu')(output)
-#     output = tf.keras.layers.Dropout(0.2)(output)
-#     output = tf.keras.layers.Dense(1,activation='sigmoid')(output)
-
-#     model = tf.keras.models.Model(inputs = [input_ids,attention_masks],outputs = output)
-#     model.compile(Adam(lr=1e-5), loss='binary_crossentropy', metrics=['accuracy'])
-#     return model
-
-# bert_model = transformers.TFBertModel.from_pretrained('bert-base-uncased')
-# model = create_model(bert_model)
-# model.summary()
-# history = model.fit(
-#     [train_input_ids, train_attention_masks],
-#     target,
-#     validation_split=0.2,
-#     epochs=1,
-#     batch_size=10
-# )
-
-# def plot_learning_curves(history, arr):
-#     fig, ax = plt.subplots(1, 2, figsize=(20, 5))
-#     for idx in range(2):
-#         ax[idx].plot(history.history[arr[idx][0]])
-#         ax[idx].plot(history.history[arr[idx][1]])
-#         ax[idx].legend([arr[idx][0], arr[idx][1]],fontsize=18)
-#         ax[idx].set_xlabel('A ',fontsize=16)
-#         ax[idx].set_ylabel('B',fontsize=16)
-#         ax[idx].set_title(arr[idx][0] + ' X ' + arr[idx][1],fontsize=16)
-
-# plot_learning_curves(history, [['loss', 'val_loss'],['accuracy', 'val_accuracy']])
-
-
-
-
-
 # LSTM MODEL
-
-
-
-
 
 # test_df = pd.read_csv("test.csv")
 
@@ -511,6 +436,9 @@ fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 
 
 
+
+
+
 # SPARK NLP MODEL
 spark = sparknlp.start()
 
@@ -533,7 +461,7 @@ nlpPipeline = Pipeline(
     ]
 )
 
-(train_set, test_set)= df_train.randomSplit([0.8, 0.2], seed=100)
+(train_set, test_set) = df_train.randomSplit([0.8, 0.2], seed=100)
 
 use_model = nlpPipeline.fit(train_set)
 
@@ -541,8 +469,11 @@ prediction = use_model.transform(train_set)
 # prediction.select("target", "text", "class.result").show(5, truncate=False)
 
 df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
-df["result"]= df["result"].apply(lambda x: x[0])
+df["result"] = df["result"].apply(lambda x: x[0])
 # print(classification_report(df["target"], df["result"]))
+
+
+
 
 
 
@@ -571,8 +502,6 @@ f1score = f1_score(y_test, y_pred)
 
 
 # HTML
-
-
 app.layout = html.Div(
     [
         html.H1('Disaster tweet classifier'),
@@ -661,24 +590,13 @@ app.layout = html.Div(
 )
 
 
-@app.callback(
-    Output("output", "children"),
-    Output("output_lr", "children"),
-    Output("output_lstm", "children"),
-    Output("output_sparknlp", "children"),
-    Output("output_global", "children"),
-    Input("inp_tweet", "value"),
-)
 
-def update_output(input):
-    pred_lr = 0
-    pred_lstm = 0
-    pred_sparkNLP = 0
-    global_pred = "Non-disaster"
+def calculate(input):
     print(input)
-    # lstm_format = pad_sequences(embed(input), length_long_sentence, padding='post')
-    # predlstml = model.predict(lstm_format)
-    # print(predlstml)
+    pred_lr = -1
+    pred_lstm = -1
+    pred_sparkNLP = -1
+    global_pred = ""
 
     if input:
         # Logistic Regression
@@ -688,6 +606,11 @@ def update_output(input):
         if len(pred_lr_list) > 0:
             pred_lr = pred_lr_list[0]
 
+        # TODO: LSTM
+        pred_lstm = 1
+        # lstm_format = pad_sequences(embed(input), length_long_sentence, padding='post')
+        # predlstml = model.predict(lstm_format)
+        # print(predlstml)
 
         # SparkNLP
         spark_columns = ["id", "text"]
@@ -696,19 +619,143 @@ def update_output(input):
         l = spark.createDataFrame(rdd).toDF(*spark_columns)
         spark_prediction = use_model.transform(l)
         predSp = spark_prediction.select("class.result").collect()
-        pred_sparkNLP = re.sub(r'[^0-9 ]+', '', str(predSp[0]))
+        pred_sparkNLP = int(re.sub(r'[^0-9 ]+', '', str(predSp[0])))
 
-        global_pred = (pred_lr + pred_lstm + int(pred_sparkNLP)) / 3
+        global_pred = (pred_lr + pred_lstm + pred_sparkNLP) / 3
         global_pred = "Disaster" if global_pred >= 0.5 else "Non-disaster"
 
+    return pred_lr, pred_lstm, pred_sparkNLP, global_pred
+
+
+@app.callback(
+    Output("output_lr", "children"),
+    Output("output_lstm", "children"),
+    Output("output_sparknlp", "children"),
+    Output("output_global", "children"),
+    Input("inp_tweet", "value"),
+)
+
+def update_output(input):
+    pred_lr, pred_lstm, pred_sparkNLP, global_pred = calculate(input)
+
     return (
-        input,
         'Logistic Regression: \n {}'.format(str(pred_lr)),
         'LSTM: \n {}'.format(str(pred_lstm)),
         'SparkNLP: \n {}'.format(str(pred_sparkNLP)),
         'Global: \n {}'.format(global_pred)
     )
 
+
+@app.callback(
+    Output("output_lr", "style"),
+    Input("inp_tweet", "value"),
+)
+
+def set_output_lr_style(input):
+    pred_lr, pred_lstm, pred_sparkNLP, global_pred = calculate(input)
+
+    response = {
+        'background': '#6096ba',
+        'width': '30%',
+        'font-size': '20px',
+        'text-align': 'center',
+        'border-radius': '20px',
+        'padding-top': '15px',
+        'padding-bottom': '15px',
+    }
+
+    if pred_lr == 0:
+        response['background'] = 'green'
+        return response
+    elif pred_lr == 1:
+        response['background'] = 'red'
+        return response
+    else:
+        return response
+
+
+@app.callback(
+    Output("output_lstm", "style"),
+    Input("inp_tweet", "value"),
+)
+
+def set_output_lstm_style(input):
+    pred_lr, pred_lstm, pred_sparkNLP, global_pred = calculate(input)
+
+    response = {
+        'background': '#6096ba',
+        'width': '30%',
+        'font-size': '20px',
+        'text-align': 'center',
+        'border-radius': '20px',
+        'padding-top': '15px',
+        'padding-bottom': '15px',
+    }
+
+    if pred_lstm == 0:
+        response['background'] = 'green'
+        return response
+    elif pred_lstm == 1:
+        response['background'] = 'red'
+        return response
+    else:
+        return response
+
+@app.callback(
+    Output("output_sparknlp", "style"),
+    Input("inp_tweet", "value"),
+)
+
+def set_output_sparknlp_style(input):
+    pred_lr, pred_lstm, pred_sparkNLP, global_pred = calculate(input)
+
+    response = {
+        'background': '#6096ba',
+        'width': '30%',
+        'font-size': '20px',
+        'text-align': 'center',
+        'border-radius': '20px',
+        'padding-top': '15px',
+        'padding-bottom': '15px',
+    }
+
+    if pred_sparkNLP == 0:
+        response['background'] = 'green'
+        return response
+    elif pred_sparkNLP == 1:
+        response['background'] = 'red'
+        return response
+    else:
+        return response
+
+
+@app.callback(
+    Output("output_global", "style"),
+    Input("inp_tweet", "value"),
+)
+
+def set_output_global_style(input):
+    pred_lr, pred_lstm, pred_sparkNLP, global_pred = calculate(input)
+
+    response = {
+        'background': '#6096ba',
+        'width': '50%',
+        'font-size': '20px',
+        'text-align': 'center',
+        'border-radius': '20px',
+        'padding-top': '15px',
+        'padding-bottom': '15px',
+        'margin-top': '15px',
+    }
+
+    if global_pred == "Non-disaster":
+        response['background'] = 'green'
+        return response
+    elif global_pred == "Disaster":
+        response['background'] = 'red'
+        return response
+    else:
+        return response
 
 
 if __name__ == '__main__':
