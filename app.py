@@ -611,7 +611,7 @@ app.layout = html.Div(
             ],
                 id="output_lr",
                 style={
-                    'background': 'green',
+                    'background': '#6096ba',
                     'width': '30%',
                     'font-size': '20px',
                     'text-align': 'center',
@@ -623,7 +623,7 @@ app.layout = html.Div(
             html.Div(
                 id="output_lstm",
                 style={
-                    'background': 'green',
+                    'background': '#6096ba',
                     'width': '30%',
                     'font-size': '20px',
                     'text-align': 'center',
@@ -635,7 +635,7 @@ app.layout = html.Div(
             html.Div(
                 id="output_sparknlp",
                 style={
-                    'background': 'green',
+                    'background': '#6096ba',
                     'width': '30%',
                     'font-size': '20px',
                     'text-align': 'center',
@@ -644,7 +644,19 @@ app.layout = html.Div(
                     'padding-bottom': '15px',
                 }
             ),
-        ], style={
+            html.Div(
+                id="output_global",
+                style={
+                    'background': '#6096ba',
+                    'width': '30%',
+                    'font-size': '20px',
+                    'text-align': 'center',
+                    'border-radius': '20px',
+                    'padding-top': '15px',
+                    'padding-bottom': '15px',
+                }
+            ),
+        ], style = {
             'display':'flex',
             'justify-content':'space-between'
         }),
@@ -661,30 +673,50 @@ app.layout = html.Div(
     Output("output_lr", "children"),
     Output("output_lstm", "children"),
     Output("output_sparknlp", "children"),
+    Output("output_global", "children"),
     Input("inp_tweet", "value"),
 )
 
-def update_output(input1):
-    print(input1)
-    # lstm_format = pad_sequences(embed(input1), length_long_sentence, padding='post')
+def update_output(input):
+    pred_lr = 0
+    pred_lstm = 1
+    pred_sparkNLP = 0
+    global_pred = "No desastre"
+    print(input)
+    # lstm_format = pad_sequences(embed(input), length_long_sentence, padding='post')
     # predlstml = model.predict(lstm_format)
     # print(predlstml)
-    val_lr = vectorizer.transform([input1]).todense()
-    pred_lr = model.predict(val_lr)
 
-    # if input1 != None:
-    #     columns = ["id", "text"]
-    #     data = [("0", input1)]
-    #     rdd = spark.sparkContext.parallelize(data)
-    #     l = spark.createDataFrame(rdd).toDF(*columns)
-    #     # l.show()
-    #     prediction = use_model.transform(l)
-    #     # prediction.select("id", "text", "class.result").show(truncate=False)
-    #     pred = prediction.select("class.result").collect()
-    #     res_sparkNLP = re.sub(r'[^0-9 ]+', '', str(pred[0]))
-    #     # print(res_sparkNLP)
-    #     return (input1, 'Bert: \n {}'.format(input1), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(res_sparkNLP))
-    return (input1, 'Logistic Regression: \n {}'.format(pred_lr[0]), 'LSTM: \n {}'.format(input1), 'SparkNLP: \n {}'.format(input1))
+    if input is not None:
+        # Logistic Regression
+        val_lr = vectorizer.transform([input]).todense()
+        pred_lr_list = model.predict(val_lr)
+
+        if len(pred_lr_list) > 0:
+            pred_lr = pred_lr_list[0]
+
+        # columns = ["id", "text"]
+        # data = [("0", input)]
+        # rdd = spark.sparkContext.parallelize(data)
+        # l = spark.createDataFrame(rdd).toDF(*columns)
+        # # l.show()
+        # prediction = use_model.transform(l)
+        # # prediction.select("id", "text", "class.result").show(truncate=False)
+        # pred = prediction.select("class.result").collect()
+        # res_sparkNLP = re.sub(r'[^0-9 ]+', '', str(pred[0]))
+        # # print(res_sparkNLP)
+        # return (input, 'Bert: \n {}'.format(input), 'LSTM: \n {}'.format(input), 'SparkNLP: \n {}'.format(res_sparkNLP))
+
+        global_pred = (pred_lr + pred_lstm + pred_sparkNLP) / 3
+        global_pred = "Desastre" if global_pred >= 0.5 else "No desastre"
+
+    return (
+        input,
+        'Logistic Regression: \n {}'.format(str(pred_lr)),
+        'LSTM: \n {}'.format(str(pred_lstm)),
+        'SparkNLP: \n {}'.format(str(pred_sparkNLP)),
+        'Global: \n {}'.format(global_pred)
+    )
 
 
 
