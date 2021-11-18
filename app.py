@@ -678,9 +678,9 @@ app.layout = html.Div(
 )
 
 def update_output(input):
-    pred_lr = 0
-    pred_lstm = 1
-    pred_sparkNLP = 0
+    pred_lr = -1
+    pred_lstm = -1
+    pred_sparkNLP = -1
     global_pred = "No desastre"
     print(input)
     # lstm_format = pad_sequences(embed(input), length_long_sentence, padding='post')
@@ -691,6 +691,9 @@ def update_output(input):
         # Logistic Regression
         val_lr = vectorizer.transform([input]).todense()
         pred_lr_list = model.predict(val_lr)
+
+        pred_lstm = 1
+        pred_sparkNLP = 1
 
         if len(pred_lr_list) > 0:
             pred_lr = pred_lr_list[0]
@@ -718,6 +721,152 @@ def update_output(input):
         'Global: \n {}'.format(global_pred)
     )
 
+
+@app.callback(
+    Output("output_lr", "style"),
+    Input("inp_tweet", "value"),
+)
+
+def set_output_lr_style(input):
+    pred_lr = -1
+
+    if input is not None:
+        # Logistic Regression
+        val_lr = vectorizer.transform([input]).todense()
+        pred_lr_list = model.predict(val_lr)
+
+        if len(pred_lr_list) > 0:
+            pred_lr = pred_lr_list[0]
+
+    response = {
+        'background': '#6096ba',
+        'width': '30%',
+        'font-size': '20px',
+        'text-align': 'center',
+        'border-radius': '20px',
+        'padding-top': '15px',
+        'padding-bottom': '15px',
+    }
+
+    if pred_lr == 0:
+        response['background'] = 'green'
+        return response
+    elif pred_lr == 1:
+        response['background'] = 'red'
+        return response
+    else:
+        return response
+
+
+
+@app.callback(
+    Output("output_lstm", "style"),
+    Input("inp_tweet", "value"),
+)
+
+def set_output_lstm_style(input):
+    pred_lstm = -1
+    # lstm_format = pad_sequences(embed(input), length_long_sentence, padding='post')
+    # predlstml = model.predict(lstm_format)
+    # print(predlstml)
+
+    if input is not None:
+        pred_lstm = 1
+
+    response = {
+        'background': '#6096ba',
+        'width': '30%',
+        'font-size': '20px',
+        'text-align': 'center',
+        'border-radius': '20px',
+        'padding-top': '15px',
+        'padding-bottom': '15px',
+    }
+
+    if pred_lstm == 0:
+        response['background'] = 'green'
+        return response
+    elif pred_lstm == 1:
+        response['background'] = 'red'
+        return response
+    else:
+        return response
+
+@app.callback(
+    Output("output_sparknlp", "style"),
+    Input("inp_tweet", "value"),
+)
+
+def set_output_sparknlp_style(input):
+    pred_sparkNLP = -1
+
+    if input is not None:
+        pred_sparkNLP = 1
+
+    response = {
+        'background': '#6096ba',
+        'width': '30%',
+        'font-size': '20px',
+        'text-align': 'center',
+        'border-radius': '20px',
+        'padding-top': '15px',
+        'padding-bottom': '15px',
+    }
+
+    if pred_sparkNLP == 0:
+        response['background'] = 'green'
+        return response
+    elif pred_sparkNLP == 1:
+        response['background'] = 'red'
+        return response
+    else:
+        return response
+
+
+@app.callback(
+    Output("output_global", "style"),
+    Input("inp_tweet", "value"),
+)
+
+def set_output_global_style(input):
+    pred_lr = -1
+    pred_lstm = -1
+    pred_sparkNLP = -1
+    global_pred = -1
+
+    if input is not None:
+        # Logistic Regression
+        val_lr = vectorizer.transform([input]).todense()
+        pred_lr_list = model.predict(val_lr)
+
+        if len(pred_lr_list) > 0:
+            pred_lr = pred_lr_list[0]
+
+        pred_lstm = 1
+        pred_sparkNLP = 1
+
+        global_pred = (pred_lr + pred_lstm + pred_sparkNLP) / 3
+        global_pred = 1 if global_pred >= 0.5 else 0
+
+
+    response = {
+        'background': '#6096ba',
+        'width': '30%',
+        'font-size': '20px',
+        'text-align': 'center',
+        'border-radius': '20px',
+        'padding-top': '15px',
+        'padding-bottom': '15px',
+    }
+
+    if global_pred == 0:
+        response['background'] = 'green'
+        return response
+    elif global_pred == 1:
+        response['background'] = 'red'
+        return response
+    else:
+        return response
 
 
 if __name__ == '__main__':
