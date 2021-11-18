@@ -16,7 +16,7 @@ filelock==3.3.2
 Flask==2.0.2
 Flask-Compress==1.10.1
 flatbuffers==2.0
-# folium==0.12.1
+# folium==0.12.py
 gast==0.4.0
 geographiclib==1.52
 # geopy==2.2.0
@@ -63,7 +63,7 @@ rsa==4.7.2
 sacremoses==0.0.46
 scikit-learn==1.0.1
 scipy==1.7.2
-# seaborn==0.11.2
+seaborn==0.11.2
 six==1.16.0
 sklearn==0.0
 spark-nlp==3.3.2
@@ -82,6 +82,6 @@ transformers==4.12.3
 typing_extensions==4.0.0
 urllib3==1.26.7
 Werkzeug==2.0.2
-wordcloud==1.8.1
+# wordcloud==1.8.1
 wrapt==1.13.3
 zipp==3.6.0
