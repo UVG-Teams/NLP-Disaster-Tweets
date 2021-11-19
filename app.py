@@ -490,10 +490,10 @@ y = data['target'].values
 
 X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=2021)
 
-model = LogisticRegression(C=1.0, random_state=111)
-model.fit(X_train, y_train)
+modelLR = LogisticRegression(C=1.0, random_state=111)
+modelLR.fit(X_train, y_train)
 
-y_pred = model.predict(X_test)
+y_pred = modelLR.predict(X_test)
 
 f1score = f1_score(y_test, y_pred)
 # print(f"Model Score: {f1score * 100:.2f} %")
@@ -601,16 +601,15 @@ def calculate(input):
     if input:
         # Logistic Regression
         val_lr = vectorizer.transform([input]).todense()
-        pred_lr_list = model.predict(val_lr)
+        pred_lr_list = modelLR.predict(val_lr)
 
         if len(pred_lr_list) > 0:
             pred_lr = pred_lr_list[0]
 
-        # TODO: LSTM
-        pred_lstm = 1
+        # LSTM
         lstm_format = pad_sequences(embed([input]), length_long_sentence, padding='post')
-        predlstml = (model.predict(lstm_format) > 0.5 ).astype("int32")
-        print(predlstml)
+        pred_lstm = (model.predict(lstm_format) > 0.5 ).astype("int32")
+        pred_lstm = int(pred_lstm[0][0])
 
         # SparkNLP
         spark_columns = ["id", "text"]
