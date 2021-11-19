@@ -427,13 +427,6 @@ preds = (model.predict(X_test) > 0.5).astype("int32")
 
 show_metrics(preds, y_test)
 
-
-
-
-
-
-
-
 # SPARK NLP MODEL
 spark = sparknlp.start()
 
@@ -461,19 +454,9 @@ nlpPipeline = Pipeline(
 use_model = nlpPipeline.fit(train_set)
 
 prediction = use_model.transform(train_set)
-# prediction.select("target", "text", "class.result").show(5, truncate=False)
 
 df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
 df["result"] = df["result"].apply(lambda x: x[0])
-# print(classification_report(df["target"], df["result"]))
-
-
-
-
-
-
-
-
 
 # Logistic Regression MODEL
 vectorizer = CountVectorizer(analyzer='word', binary=True, stop_words='english')
@@ -491,10 +474,6 @@ modelLR.fit(X_train, y_train)
 y_pred = modelLR.predict(X_test)
 
 f1score = f1_score(y_test, y_pred)
-# print(f"Model Score: {f1score * 100:.2f} %")
-
-
-
 
 # HTML
 app.layout = html.Div(
@@ -577,10 +556,6 @@ app.layout = html.Div(
             'display':'flex',
             'justify-content':'center'
         }),
-        # dcc.Graph(
-        #     id='example-graph',
-        #     figure=fig
-        # )
     ]
 )
 
