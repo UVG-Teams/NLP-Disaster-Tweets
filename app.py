@@ -44,7 +44,9 @@ from keras.layers import (LSTM, Embedding, BatchNormalization, Dense, TimeDistri
 import dash
 from dash import html
 from dash import dcc
+from dash import callback_context
 from dash.dependencies import Input, Output
+from plotly.tools import mpl_to_plotly
 
 
 app = dash.Dash(__name__)
@@ -428,10 +430,18 @@ history = model.fit(
     callbacks = [reduce_lr, checkpoint]
 )
 
-preds = (model.predict(X_test) > 0.5).astype("int32")
+preds_lstm = (model.predict(X_test) > 0.5).astype("int32")
 
-show_metrics(preds, y_test)
+# show_metrics(preds, y_test)
 
+f1_lstm_  = f1_score(preds_lstm, y_test)
+f1_lstm = f"{f1_lstm_ * 100:.2f}%"
+precision_lstm_ = precision_score(preds_lstm, y_test)
+precision_lstm = f"{precision_lstm_ * 100:.2f}%"
+recall_lstm_ = recall_score(preds_lstm, y_test)
+recall_lstm = f"{recall_lstm_ * 100:.2f}%"
+accuracy_lstm_ = accuracy_score(preds_lstm, y_test)
+accuracy_lstm = f"{accuracy_lstm_ * 100:.2f}%"
 
 
 
@@ -470,7 +480,20 @@ prediction = use_model.transform(train_set)
 
 df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
 df["result"] = df["result"].apply(lambda x: x[0])
-# print(classification_report(df["target"], df["result"]))
+ty = classification_report(df["target"], df["result"])
+
+accuracy_snlp_ = accuracy_score(df["target"], df["result"])
+accuracy_snlp = f"{accuracy_snlp_ * 100:.2f}%"
+
+f1_snlp_ = ty[148:152]
+f1_snlp = f"{float(f1_snlp_) * 100:.2f}%"
+
+recall_snlp_ = ty[138:142]
+recall_snlp = f"{float(recall_snlp_) * 100:.2f}%"
+
+precision_snlp_ = ty[128:132]
+precision_snlp = f"{float(precision_snlp_) * 100:.2f}%"
+
 
 
 
@@ -488,17 +511,46 @@ x = vectorizer.transform(data['text']).todense()
 y = data['target'].values
 
 
-X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=2021)
+X_train, X_test, y_train, y_test_lr = train_test_split(x, y, test_size=0.2, random_state=2021)
 
 modelLR = LogisticRegression(C=1.0, random_state=111)
 modelLR.fit(X_train, y_train)
 
-y_pred = modelLR.predict(X_test)
+y_pred_lr = modelLR.predict(X_test)
 
-f1score = f1_score(y_test, y_pred)
+# f1score = f1_score(y_test, y_pred_lr)
 # print(f"Model Score: {f1score * 100:.2f} %")
 
+f1_lr_  = f1_score(y_pred_lr, y_test_lr)
+f1_lr = f"{f1_lr_ * 100:.2f}%"
+precision_lr_ = precision_score(y_pred_lr, y_test_lr)
+precision_lr = f"{precision_lr_ * 100:.2f}%"
+recall_lr_ = recall_score(y_pred_lr, y_test_lr)
+recall_lr = f"{recall_lr_ * 100:.2f}%"
+accuracy_lr_ = accuracy_score(y_pred_lr, y_test_lr)
+accuracy_lr = f"{accuracy_lr_ * 100:.2f}%"
 
+
+
+
+
+def plot_learning_curves(history, arr):
+    fig= plt.figure()
+    fig, ax = plt.subplots(1, 2, figsize=(15, 3))
+    for idx in range(2):
+        ax[idx].plot(history.history[arr[idx][0]])
+        ax[idx].plot(history.history[arr[idx][1]])
+        # ax[idx].legend([arr[idx][0], arr[idx][1]])
+        ax[idx].set_xlabel('A ')
+        ax[idx].set_ylabel('B')
+        ax[idx].set_title(arr[idx][0] + '(blue)' + ' vs ' + arr[idx][1] + '(orange)')
+        ax[idx].legend()
+    return fig
+
+lstm_fig_ = plot_learning_curves(history, [['loss', 'val_loss'],['accuracy', 'val_accuracy']])
+
+
+lstm_fig = mpl_to_plotly(lstm_fig_)
 
 
 # HTML
@@ -523,43 +575,65 @@ app.layout = html.Div(
         html.Div(id="output"),
         html.Div([
             html.Div([
-                html.H4("Logistic Regression")
-            ],
-                id="output_lr",
-                style={
-                    'background': '#6096ba',
-                    'width': '30%',
-                    'font-size': '20px',
-                    'text-align': 'center',
-                    'border-radius': '20px',
-                    'padding-top': '15px',
-                    'padding-bottom': '15px',
-                }
-            ),
-            html.Div(
-                id="output_lstm",
-                style={
-                    'background': '#6096ba',
-                    'width': '30%',
-                    'font-size': '20px',
-                    'text-align': 'center',
-                    'border-radius': '20px',
-                    'padding-top': '15px',
-                    'padding-bottom': '15px',
-                }
-            ),
-            html.Div(
-                id="output_sparknlp",
-                style={
-                    'background': '#6096ba',
-                    'width': '30%',
-                    'font-size': '20px',
-                    'text-align': 'center',
-                    'border-radius': '20px',
-                    'padding-top': '15px',
-                    'padding-bottom': '15px',
-                }
-            ),
+                html.Div([
+                    html.H4("Logistic Regression")
+                ],
+                    id="output_lr",
+                    style={
+                        'background': '#6096ba',
+                        'font-size': '20px',
+                        'text-align': 'center',
+                        'border-radius': '20px',
+                        'padding-top': '15px',
+                        'padding-bottom': '15px',
+                    }
+                ),
+                html.Button('Logistic Regression Metrics', id='btn-nclicks-1', n_clicks=0, style={'background':'#E2FDFF', 'border-style':'solid', 'border-radius':'10px', 'padding-top':'10px', 'padding-bottom':'10px', 'margin-top':'10px', 'border-color': '#6096ba'}),
+            ],style = {
+                'width': '30%',
+                'display': 'flex',
+                'flex-direction': 'column',
+            }),
+            html.Div([
+                html.Div([
+                    html.H4("LSTM")
+                ],
+                    id="output_lstm",
+                    style={
+                        'background': '#6096ba',
+                        'font-size': '20px',
+                        'text-align': 'center',
+                        'border-radius': '20px',
+                        'padding-top': '15px',
+                        'padding-bottom': '15px',
+                    }
+                ),
+                html.Button('LSTM Metrics', id='btn-nclicks-2', n_clicks=0, style={'background':'#E2FDFF', 'border-style':'solid', 'border-radius':'10px', 'padding-top':'10px', 'padding-bottom':'10px', 'margin-top':'10px', 'border-color': '#6096ba'}),
+            ], style = {
+                'width': '30%',
+                'display': 'flex',
+                'flex-direction': 'column',
+            }),
+            html.Div([
+                html.Div([
+                    html.H4("SparkNLP")
+                ],
+                    id="output_sparknlp",
+                    style={
+                        'background': '#6096ba',
+                        'font-size': '20px',
+                        'text-align': 'center',
+                        'border-radius': '20px',
+                        'padding-top': '15px',
+                        'padding-bottom': '15px',
+                    }
+                ),
+                html.Button('SparkNLP Metrics', id='btn-nclicks-3', n_clicks=0, style={'background':'#E2FDFF', 'border-style':'solid', 'border-radius':'10px', 'padding-top':'10px', 'padding-bottom':'10px', 'margin-top':'10px', 'border-color': '#6096ba'}),
+            ], style = {
+                'width': '30%',
+                'display': 'flex',
+                'flex-direction': 'column',
+            }),
         ], style = {
             'display':'flex',
             'justify-content':'space-between'
@@ -582,13 +656,300 @@ app.layout = html.Div(
             'display':'flex',
             'justify-content':'center'
         }),
-        # dcc.Graph(
-        #     id='example-graph',
-        #     figure=fig
-        # )
+        html.Div([
+            
+            html.Div(id='container-button-timestamp'),
+            # dcc.Graph(
+            #     id='learning-curves-lstm',
+            #     figure=lstm_fig
+            # )
+        ])
     ]
 )
+is_visible = False
+@app.callback(
+    Output('container-button-timestamp', 'children'),
+    Input('btn-nclicks-1', 'n_clicks'),
+    Input('btn-nclicks-2', 'n_clicks'),
+    Input('btn-nclicks-3', 'n_clicks'),
+)
 
+def displayClick(nclicks, nclicks2, nclicks3):
+    changed_id = [p['prop_id'] for p in callback_context.triggered][0]
+    if 'btn-nclicks-1' in changed_id:
+        if nclicks % 2 == 1:
+            return html.Div([
+                    html.Div([
+                        html.Div([
+                            html.H4('F1-Score'),
+                            html.H5(f1_lr),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                            }
+                        ),
+                        html.Div([
+                            html.H4('Precision'),
+                            html.H5(precision_lr),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                                'margin-left': '20px',
+                            }
+                        ),
+
+                    ], style={
+                        'display': 'flex'
+                    }),
+                    html.Div([
+                        html.Div([
+                            html.H4('Recall'),
+                            html.H5(recall_lr),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                            }
+                        ),
+                        html.Div([
+                            html.H4('Accuracy'),
+                            html.H5(accuracy_lr),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                                'margin-left': '20px',
+                            }
+                        ),
+
+                    ], style={
+                        'display': 'flex',
+                    }),
+            ], style={
+                'display': 'flex',
+                'flex-direction': 'column',
+                'padding-left': '37%'
+            })
+
+        else:
+            return html.Div("")
+    elif 'btn-nclicks-2' in changed_id:
+        if nclicks2 % 2 == 1:        
+            return html.Div([
+                html.Div([
+                    html.Div([
+                        html.Div([
+                            html.H4('F1-Score'),
+                            html.H5(f1_lstm),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                            }
+                        ),
+                        html.Div([
+                            html.H4('Precision'),
+                            html.H5(precision_lstm),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                                'margin-left': '20px',
+                            }
+                        ),
+
+                    ], style={
+                        'display': 'flex'
+                    }),
+                    html.Div([
+                        html.Div([
+                            html.H4('Recall'),
+                            html.H5(recall_lstm),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                            }
+                        ),
+                        html.Div([
+                            html.H4('Accuracy'),
+                            html.H5(accuracy_lstm),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                                'margin-left': '20px',
+                            }
+                        ),
+
+                    ], style={
+                        'display': 'flex',
+                    }),
+            ], style={
+                'display': 'flex',
+                'flex-direction': 'column',
+                'padding-left': '37%'
+            }),
+            html.Div([
+                dcc.Graph(
+                    id='learning-curves-lstm',
+                    figure=lstm_fig,
+                    style={
+                        'margin-left': '5%'
+                    }
+                )
+            ])
+            ])
+    elif 'btn-nclicks-3' in changed_id:
+        if nclicks3 % 2 == 1:
+            return html.Div([
+                    html.Div([
+                        html.Div([
+                            html.H4('F1-Score'),
+                            html.H5(f1_snlp),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                            }
+                        ),
+                        html.Div([
+                            html.H4('Precision'),
+                            html.H5(precision_snlp),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                                'margin-left': '20px',
+                            }
+                        ),
+
+                    ], style={
+                        'display': 'flex'
+                    }),
+                    html.Div([
+                        html.Div([
+                            html.H4('Recall'),
+                            html.H5(recall_snlp),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                            }
+                        ),
+                        html.Div([
+                            html.H4('Accuracy'),
+                            html.H5(accuracy_snlp),
+                        ],
+                            id="test",
+                            style={
+                                'background': '#6096ba',
+                                'width': '20%',
+                                'font-size': '20px',
+                                'text-align': 'center',
+                                'border-radius': '20px',
+                                'padding-top': '5px',
+                                'padding-bottom': '5px',
+                                'margin-top': '20px',
+                                'margin-left': '20px',
+                            }
+                        ),
+
+                    ], style={
+                        'display': 'flex',
+                    }),
+            ], style={
+                'display': 'flex',
+                'flex-direction': 'column',
+                'padding-left': '37%'
+            })
+
+        else:
+            # msg = 'None of the buttons have been clicked yet'
+            return html.Div("")
+    else:
+        # msg = 'None of the buttons have been clicked yet'
+        return html.Div("")
+    return html.Div("")
 
 
 def calculate(input):
@@ -655,7 +1016,7 @@ def set_output_lr_style(input):
 
     response = {
         'background': '#6096ba',
-        'width': '30%',
+        # 'width': '30%',
         'font-size': '20px',
         'text-align': 'center',
         'border-radius': '20px',
@@ -664,10 +1025,10 @@ def set_output_lr_style(input):
     }
 
     if pred_lr == 0:
-        response['background'] = 'green'
+        response['background'] = '#55B56A'
         return response
     elif pred_lr == 1:
-        response['background'] = 'red'
+        response['background'] = '#FF5757'
         return response
     else:
         return response
@@ -683,7 +1044,7 @@ def set_output_lstm_style(input):
 
     response = {
         'background': '#6096ba',
-        'width': '30%',
+        # 'width': '30%',
         'font-size': '20px',
         'text-align': 'center',
         'border-radius': '20px',
@@ -692,10 +1053,10 @@ def set_output_lstm_style(input):
     }
 
     if pred_lstm == 0:
-        response['background'] = 'green'
+        response['background'] = '#55B56A'
         return response
     elif pred_lstm == 1:
-        response['background'] = 'red'
+        response['background'] = '#FF5757'
         return response
     else:
         return response
@@ -710,7 +1071,7 @@ def set_output_sparknlp_style(input):
 
     response = {
         'background': '#6096ba',
-        'width': '30%',
+        # 'width': '30%',
         'font-size': '20px',
         'text-align': 'center',
         'border-radius': '20px',
@@ -719,10 +1080,10 @@ def set_output_sparknlp_style(input):
     }
 
     if pred_sparkNLP == 0:
-        response['background'] = 'green'
+        response['background'] = '#55B56A'
         return response
     elif pred_sparkNLP == 1:
-        response['background'] = 'red'
+        response['background'] = '#FF5757'
         return response
     else:
         return response
@@ -748,14 +1109,14 @@ def set_output_global_style(input):
     }
 
     if global_pred == "Non-disaster":
-        response['background'] = 'green'
+        response['background'] = '#55B56A'
         return response
     elif global_pred == "Disaster":
-        response['background'] = 'red'
+        response['background'] = '#FF5757'
         return response
     else:
         return response
 
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', debug=True)
+    app.run_server(host='0.0.0.0', debug=False)
