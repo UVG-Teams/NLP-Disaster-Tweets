@@ -2,7 +2,6 @@ import os
 import re
 import nltk
 import string
-# import folium
 import sparknlp
 import numpy as np
 import pandas as pd
@@ -24,7 +23,6 @@ from pyspark.sql.functions import col
 from transformers import BertTokenizer
 from nltk.tokenize import word_tokenize
 from tensorflow.keras.models import Model
-# from wordcloud import WordCloud, STOPWORDS
 from tensorflow.keras.optimizers import Adam
 from tokenizers import BertWordPieceTokenizer
 from keras.preprocessing.text import Tokenizer
@@ -275,10 +273,6 @@ data['location'] = data['location'].replace({
 
 keywords = data['keyword'].value_counts().nlargest()
 fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
-
-
-
-
 
 # LSTM MODEL
 
