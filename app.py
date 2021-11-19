@@ -344,8 +344,9 @@ test_padded_sentences = pad_sequences(
 
 embeddings_dictionary = dict()
 embedding_dim = 100
+file_name = 'glove.6B.100d.txt'
 
-with open('glove.6B.100d.txt') as fp:
+with open(file_name) as fp:
     for line in fp.readlines():
         records = line.split()
         word = records[0]
