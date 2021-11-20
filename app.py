@@ -2,7 +2,6 @@ import os
 import re
 import nltk
 import string
-# import folium
 import sparknlp
 import numpy as np
 import pandas as pd
@@ -24,7 +23,6 @@ from pyspark.sql.functions import col
 from transformers import BertTokenizer
 from nltk.tokenize import word_tokenize
 from tensorflow.keras.models import Model
-# from wordcloud import WordCloud, STOPWORDS
 from tensorflow.keras.optimizers import Adam
 from tokenizers import BertWordPieceTokenizer
 from keras.preprocessing.text import Tokenizer
@@ -278,10 +276,6 @@ data['location'] = data['location'].replace({
 keywords = data['keyword'].value_counts().nlargest()
 fig = px.bar(data, x=keywords.tolist(), y=keywords.index)
 
-
-
-
-
 # LSTM MODEL
 
 test_df = pd.read_csv("test.csv")
@@ -352,8 +346,9 @@ test_padded_sentences = pad_sequences(
 
 embeddings_dictionary = dict()
 embedding_dim = 100
+file_name = 'glove.6B.100d.txt'
 
-with open('glove.6B.100d.txt') as fp:
+with open(file_name) as fp:
     for line in fp.readlines():
         records = line.split()
         word = records[0]
@@ -476,7 +471,6 @@ nlpPipeline = Pipeline(
 use_model = nlpPipeline.fit(train_set)
 
 prediction = use_model.transform(train_set)
-# prediction.select("target", "text", "class.result").show(5, truncate=False)
 
 df = use_model.transform(train_set).select("target", "document", "class.result").toPandas()
 df["result"] = df["result"].apply(lambda x: x[0])
